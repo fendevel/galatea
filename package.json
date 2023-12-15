@@ -1,0 +1,13 @@
+{
+  "name": "galatea",
+  "author": "Jack Fenech",
+  "version": "1.0.0",
+  "main": "./build/main.js",
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "discord.js": "^14.14.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0"
+  }
+}

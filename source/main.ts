@@ -4,7 +4,7 @@ const { starLines } = require("../lines.json")
 import {Canvas, loadImage} from "canvas"
 import * as path from "node:path"
 
-let starLineIndex = 0
+let linesDone = []
 
 console.log("hello world!!!")
 
@@ -15,17 +15,32 @@ type Command = {
 
 let commands = new Collection<string, Command>()
 
+function pickLine(): number {
+    let index = -1
+
+    if (linesDone.length == starLines.length) {
+        linesDone = []
+    }
+
+    do {
+        index = Math.round(Math.random()*(starLines.length - 1))
+    } while(linesDone.includes(index))
+
+    linesDone.push(index)
+
+    return index
+}
+
 commands.set("Award author", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isMessageContextMenuCommand()) {
             const msgInteraction: MessageContextMenuCommandInteraction = interaction
 
-            const buffer = await drawTriedStar(starLineIndex)
+            const buffer = await drawTriedStar(pickLine())
             const result = await interaction.reply({
                 content: msgInteraction.targetMessage.author.id == client.user.id ? undefined : `${msgInteraction.targetMessage.author}`,
                 files: [new AttachmentBuilder(buffer)]
             })
-            starLineIndex = (starLineIndex + 1) % starLines.length
         }
     }
 })
@@ -35,12 +50,11 @@ commands.set("Award user", {
         if (interaction.isUserContextMenuCommand()) {
             const userInteraction: UserContextMenuCommandInteraction = interaction
 
-            const buffer = await drawTriedStar(starLineIndex)
+            const buffer = await drawTriedStar(pickLine())
             const result = await interaction.reply({
                 content: userInteraction.targetUser.id == client.user.id ? undefined : `${userInteraction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
             })
-            starLineIndex = (starLineIndex + 1) % starLines.length
         }
     }
 })
@@ -100,9 +114,9 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
 
     for (let i = 0; i < 5; i += 1) {
         const outer = originalOuter
-        let inner = Math.max((Math.random()*2)*originalInner, radius*0.01)
+        let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
         if (inner > originalInner) {
-            inner = Math.max((Math.random()*2)*originalInner, radius*0.01)
+            inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
         }
 
         const biasOffset = Math.round(Math.random()*100)
@@ -138,14 +152,33 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
 
     } else {
         ctx.fill()
+        ctx.font = '100px "Comic Sans MS"'
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+
+        const chosenLine: string = starLines[lineIndex]
+        let lines = []
+        let offset = 0
+
+        const words = chosenLine.split(" ")
+        for (let i = 1; i < words.length; i += 1) {
+            const segment = words.slice(offset, i).join(" ")
+            const msgMetric = ctx.measureText(segment)
+            if (msgMetric.width > w*0.8) {
+                lines.push(words.slice(offset, i - 1).join(" "))
+                offset = i - 1
+            }
+        }
+
+        lines.push(words.slice(offset).join(" "))
+
+        const finalLine = lines.length == 0 ? chosenLine : lines.join("\n")
 
         ctx.fillStyle = "#000000"
-        ctx.font = '100px "Comic Sans MS"'
-        const msgMetric = ctx.measureText(starLines[lineIndex])
-        ctx.fillText(starLines[lineIndex], cx - msgMetric.width/2, cy)
+        ctx.fillText(finalLine, cx, cy)
         ctx.strokeStyle = starFillColour
         ctx.lineWidth = 2
-        ctx.strokeText(starLines[lineIndex], cx - msgMetric.width/2, cy)
+        ctx.strokeText(finalLine, cx, cy)
     }
 
 

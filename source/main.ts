@@ -18,7 +18,7 @@ let commands = new Collection<string, Command>()
 function pickLine(): number {
     let index = -1
 
-    if (linesDone.length == starLines.length) {
+    if (linesDone.length >= starLines.length) {
         linesDone = []
     }
 

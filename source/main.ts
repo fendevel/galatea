@@ -1,7 +1,8 @@
 import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, UserContextMenuCommandInteraction } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
 const { starLines } = require("../lines.json")
-import {Canvas} from "canvas"
+import {Canvas, loadImage} from "canvas"
+import * as path from "node:path"
 
 let starLineIndex = 0
 
@@ -19,7 +20,7 @@ commands.set("Award author", {
         if (interaction.isMessageContextMenuCommand()) {
             const msgInteraction: MessageContextMenuCommandInteraction = interaction
 
-            const buffer = drawTriedStar(starLineIndex)
+            const buffer = await drawTriedStar(starLineIndex)
             const result = await interaction.reply({
                 content: msgInteraction.targetMessage.author.id == client.user.id ? undefined : `${msgInteraction.targetMessage.author}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -34,7 +35,7 @@ commands.set("Award user", {
         if (interaction.isUserContextMenuCommand()) {
             const userInteraction: UserContextMenuCommandInteraction = interaction
 
-            const buffer = drawTriedStar(starLineIndex)
+            const buffer = await drawTriedStar(starLineIndex)
             const result = await interaction.reply({
                 content: userInteraction.targetUser.id == client.user.id ? undefined : `${userInteraction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -65,12 +66,14 @@ async function registerCommands() {
     }
 }
 
-function drawTriedStar(lineIndex: number): Buffer {
+async function drawTriedStar(lineIndex: number): Promise<Buffer> {
     const w = 1024
     const h = 1024
 
     const canvas = new Canvas(w, h, "image")
     const ctx = canvas.getContext("2d")
+    ctx.patternQuality = "best"
+    ctx.quality = "best"
 
     const starFillColour = "#D7B144"
     const starFillColourBright = "#F4D679"
@@ -123,15 +126,29 @@ function drawTriedStar(lineIndex: number): Buffer {
     }
 
     ctx.closePath()
-    ctx.fill()
-    
-    ctx.fillStyle = "#000000"
-    ctx.font = '100px "Comic Sans MS"'
-    const msgMetric = ctx.measureText(starLines[lineIndex])
-    ctx.fillText(starLines[lineIndex], cx - msgMetric.width/2, cy)
-    ctx.strokeStyle = starFillColour
-    ctx.lineWidth = 2
-    ctx.strokeText(starLines[lineIndex], cx - msgMetric.width/2, cy)
+    if (starLines[lineIndex] == "absolutely disgusting") {
+        ctx.save()
+        ctx.clip()
+        const image = await loadImage("data/absolutely_disgusting.jpg")
+        ctx.drawImage(image, 0, 0, w, h)
+        ctx.restore()
+        const scale = 3
+        ctx.drawImage(image, 129, 365, 208, 32, cx - (208/2)*scale, cy, 208*scale, 32*scale)
+        ctx.drawImage(image, 350, 365, 203, 32, cx - (203/2)*scale, cy + 32*scale, 203*scale, 32*scale)
+
+    } else {
+        ctx.fill()
+
+        ctx.fillStyle = "#000000"
+        ctx.font = '100px "Comic Sans MS"'
+        const msgMetric = ctx.measureText(starLines[lineIndex])
+        ctx.fillText(starLines[lineIndex], cx - msgMetric.width/2, cy)
+        ctx.strokeStyle = starFillColour
+        ctx.lineWidth = 2
+        ctx.strokeText(starLines[lineIndex], cx - msgMetric.width/2, cy)
+    }
+
+
     return canvas.toBuffer()
 }
 

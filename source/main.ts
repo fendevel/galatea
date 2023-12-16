@@ -1,7 +1,7 @@
 import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, UserContextMenuCommandInteraction } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
 const { starLines } = require("../lines.json")
-import {Canvas, loadImage} from "canvas"
+import {Canvas, loadImage, registerFont} from "canvas"
 import * as path from "node:path"
 
 let linesDone = []
@@ -96,6 +96,10 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
 
     const canvas = new Canvas(w, h, "image")
     const ctx = canvas.getContext("2d")
+    registerFont("../data/COMIC.TTF", {
+        family: "Comic Sans",
+    })
+
     ctx.patternQuality = "best"
     ctx.quality = "best"
 

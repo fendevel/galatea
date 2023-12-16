@@ -20,6 +20,7 @@ function pickLine(): number {
 
     if (linesDone.length >= starLines.length) {
         linesDone = []
+        console.log("cleared lines")
     }
 
     do {

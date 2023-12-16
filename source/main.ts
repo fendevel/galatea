@@ -1,11 +1,11 @@
-import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, UserContextMenuCommandInteraction } from "discord.js"
+import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, ChannelType, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Guild, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, Snowflake, User, UserContextMenuCommandInteraction } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
 import {Canvas, loadImage, registerFont} from "canvas"
 import * as path from "node:path"
 import * as fs from "node:fs"
 
 let starLines = []
-let linesDone = []
+let linesDoneGlobal = new Map<Guild|User, Array<number>>()
 
 console.log("hello world!!!")
 
@@ -16,11 +16,18 @@ type Command = {
 
 let commands = new Collection<string, Command>()
 
-function pickLine(): string {
-    if (linesDone.length >= starLines.length) {
-        linesDone = []
-        console.log("cleared lines")
+function pickLine(domain: Guild|User): string {
+    if (!linesDoneGlobal.has(domain)) {
+        linesDoneGlobal.set(domain, new Array<number>())
+        console.log(`added domain ${domain}`)
     }
+
+    if (linesDoneGlobal.get(domain).length >= starLines.length) {
+        linesDoneGlobal.set(domain, new Array<number>())
+        console.log(`cleared lines for ${domain}`)
+    }
+
+    const linesDone = linesDoneGlobal.get(domain)
 
     const remainingLines = starLines.filter((value, index) => {
         return !linesDone.includes(index)
@@ -28,9 +35,9 @@ function pickLine(): string {
 
     const index = Math.round(Math.random()*(remainingLines.length - 1))
     const umappedIndex = starLines.indexOf(remainingLines[index])
-    linesDone.push(umappedIndex)
+    linesDoneGlobal.set(domain, [...linesDone, umappedIndex])
 
-    console.log("chose line:", umappedIndex, remainingLines[index])
+    console.log(`chose line for domain ${domain}: ${umappedIndex}, ${remainingLines[index]}`)
 
     return remainingLines[index]
 }
@@ -38,7 +45,8 @@ function pickLine(): string {
 commands.set("Award author", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isMessageContextMenuCommand()) {
-            const buffer = await drawTriedStar(pickLine())
+            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+            const buffer = await drawTriedStar(pickLine(domain))
             const result = await interaction.reply({
                 content: interaction.targetMessage.author.id == client.user.id ? undefined : `${interaction.targetMessage.author}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -50,7 +58,9 @@ commands.set("Award author", {
 commands.set("Award user", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isUserContextMenuCommand()) {
-            const buffer = await drawTriedStar(pickLine())
+            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+
+            const buffer = await drawTriedStar(pickLine(domain))
             const result = await interaction.reply({
                 content: interaction.targetUser.id == client.user.id ? undefined : `${interaction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -62,8 +72,10 @@ commands.set("Award user", {
 commands.set("award", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isChatInputCommand()) {
+            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+            
             const user = interaction.options.getUser("user")
-            const buffer = await drawTriedStar(pickLine())
+            const buffer = await drawTriedStar(pickLine(domain))
             const result = await interaction.reply({
                 content: user ? `${user}` : undefined,
                 files: [new AttachmentBuilder(buffer)]

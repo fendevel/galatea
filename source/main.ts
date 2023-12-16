@@ -55,7 +55,7 @@ commands.set("Award user", {
     }
 })
 
-commands.set("tried", {
+commands.set("award", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isChatInputCommand()) {
             const user = interaction.options.getUser("user")
@@ -71,7 +71,7 @@ commands.set("tried", {
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
-    new SlashCommandBuilder().setName("tried").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
+    new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
 ]
 
 async function registerCommands() {

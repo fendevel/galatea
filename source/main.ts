@@ -96,7 +96,7 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
 
     const canvas = new Canvas(w, h, "image")
     const ctx = canvas.getContext("2d")
-    registerFont("../data/COMIC.TTF", {
+    registerFont("data/COMIC.TTF", {
         family: "Comic Sans",
     })
 

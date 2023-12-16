@@ -231,6 +231,7 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
 
 function reloadStarLines() {
     starLines = JSON.parse(fs.readFileSync("lines.json", { encoding: "utf-8" })).starLines
+    linesDoneGlobal.clear()
     console.log("Lines cache refreshed")
 }
 

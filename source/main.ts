@@ -1,9 +1,10 @@
 import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, UserContextMenuCommandInteraction } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
-const { starLines } = require("../lines.json")
 import {Canvas, loadImage, registerFont} from "canvas"
 import * as path from "node:path"
+import * as fs from "node:fs"
 
+let starLines = []
 let linesDone = []
 
 console.log("hello world!!!")
@@ -15,21 +16,23 @@ type Command = {
 
 let commands = new Collection<string, Command>()
 
-function pickLine(): number {
-    let index = -1
-
+function pickLine(): string {
     if (linesDone.length >= starLines.length) {
         linesDone = []
         console.log("cleared lines")
     }
 
-    do {
-        index = Math.round(Math.random()*(starLines.length - 1))
-    } while(linesDone.includes(index))
+    const remainingLines = starLines.filter((value, index) => {
+        return !linesDone.includes(index)
+    })
 
-    linesDone.push(index)
+    const index = Math.round(Math.random()*(remainingLines.length - 1))
+    const umappedIndex = starLines.indexOf(remainingLines[index])
+    linesDone.push(umappedIndex)
 
-    return index
+    console.log("chose line:", umappedIndex, remainingLines[index])
+
+    return remainingLines[index]
 }
 
 commands.set("Award author", {
@@ -69,10 +72,18 @@ commands.set("award", {
     }
 })
 
+commands.set("refresh", {
+    async execute(interaction: CommandInteraction) {
+        reloadStarLines()
+        interaction.reply("Refreshed my cache -- but I didn't do it for you or anything.")
+    }
+})
+
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
     new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
+    new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
 ]
 
 async function registerCommands() {
@@ -91,7 +102,7 @@ async function registerCommands() {
     }
 }
 
-async function drawTriedStar(lineIndex: number): Promise<Buffer> {
+async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     const w = 1024
     const h = 1024
 
@@ -155,7 +166,7 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
     }
 
     ctx.closePath()
-    if (starLines[lineIndex] == "absolutely disgusting") {
+    if (chosenLine == "absolutely disgusting") {
         ctx.save()
         ctx.clip()
         const image = await loadImage("data/absolutely_disgusting.jpg")
@@ -171,7 +182,6 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
 
-        const chosenLine: string = starLines[lineIndex]
         let lines = []
         let offset = 0
 
@@ -200,6 +210,13 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
     return canvas.toBuffer()
 }
 
+function reloadStarLines() {
+    starLines = JSON.parse(fs.readFileSync("lines.json", { encoding: "utf-8" })).starLines
+    console.log("Lines cache refreshed")
+}
+
+reloadStarLines()
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds]})
 
 client.login(token)
@@ -210,7 +227,7 @@ client.once(Events.ClientReady, readyClient => {
 })
 
 client.on(Events.InteractionCreate, async interaction => {
-    console.log(interaction)
+    // console.log(interaction)
 
     if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand() && !interaction.isChatInputCommand()) {
         return

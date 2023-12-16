@@ -34,11 +34,9 @@ function pickLine(): number {
 commands.set("Award author", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isMessageContextMenuCommand()) {
-            const msgInteraction: MessageContextMenuCommandInteraction = interaction
-
             const buffer = await drawTriedStar(pickLine())
             const result = await interaction.reply({
-                content: msgInteraction.targetMessage.author.id == client.user.id ? undefined : `${msgInteraction.targetMessage.author}`,
+                content: interaction.targetMessage.author.id == client.user.id ? undefined : `${interaction.targetMessage.author}`,
                 files: [new AttachmentBuilder(buffer)]
             })
         }
@@ -48,11 +46,9 @@ commands.set("Award author", {
 commands.set("Award user", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isUserContextMenuCommand()) {
-            const userInteraction: UserContextMenuCommandInteraction = interaction
-
             const buffer = await drawTriedStar(pickLine())
             const result = await interaction.reply({
-                content: userInteraction.targetUser.id == client.user.id ? undefined : `${userInteraction.targetUser}`,
+                content: interaction.targetUser.id == client.user.id ? undefined : `${interaction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
             })
         }
@@ -177,7 +173,7 @@ async function drawTriedStar(lineIndex: number): Promise<Buffer> {
         ctx.fillStyle = "#000000"
         ctx.fillText(finalLine, cx, cy)
         ctx.strokeStyle = starFillColour
-        ctx.lineWidth = 2
+        ctx.lineWidth = 3
         ctx.strokeText(finalLine, cx, cy)
     }
 

@@ -55,9 +55,23 @@ commands.set("Award user", {
     }
 })
 
+commands.set("tried", {
+    async execute(interaction: CommandInteraction) {
+        if (interaction.isChatInputCommand()) {
+            const user = interaction.options.getUser("user")
+            const buffer = await drawTriedStar(pickLine())
+            const result = await interaction.reply({
+                content: user ? `${user}` : undefined,
+                files: [new AttachmentBuilder(buffer)]
+            })
+        }
+    }
+})
+
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
+    new SlashCommandBuilder().setName("tried").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
 ]
 
 async function registerCommands() {
@@ -193,7 +207,7 @@ client.once(Events.ClientReady, readyClient => {
 client.on(Events.InteractionCreate, async interaction => {
     console.log(interaction)
 
-    if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand()) {
+    if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand() && !interaction.isChatInputCommand()) {
         return
     }
 

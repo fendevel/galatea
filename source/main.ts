@@ -91,11 +91,18 @@ commands.set("refresh", {
     }
 })
 
+commands.set("help", {
+    async execute(interaction: CommandInteraction) {
+        interaction.reply("You can either use the slash command \`/award [user @]\`, or right-click to open the context menu and navigate to Apps -> Award user/author.")
+    }
+})
+
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
     new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
     new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
+    new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
 ]
 
 async function registerCommands() {

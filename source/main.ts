@@ -60,7 +60,7 @@ commands.set("Award user", {
         if (interaction.isUserContextMenuCommand()) {
             const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
 
-            const buffer = await drawTriedStar(pickLine(domain))
+            const buffer = await drawTriedStar("phil_what.png")
             const result = await interaction.reply({
                 content: interaction.targetUser.id == client.user.id ? undefined : `${interaction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -158,7 +158,7 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     let points = []
 
     for (let i = 0; i < 5; i += 1) {
-        const outer = originalOuter
+        const outer = Math.min(Math.random(), 0.25)*originalOuter
         let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
         if (inner > originalInner) {
             inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
@@ -194,7 +194,6 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
         const scale = 3
         ctx.drawImage(image, 129, 365, 208, 32, cx - (208/2)*scale, cy, 208*scale, 32*scale)
         ctx.drawImage(image, 350, 365, 203, 32, cx - (203/2)*scale, cy + 32*scale, 203*scale, 32*scale)
-
     } else {
         ctx.fill()
         ctx.font = '100px "Comic Sans MS"'

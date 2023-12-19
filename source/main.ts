@@ -75,7 +75,8 @@ commands.set("award", {
             const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
             
             const user = interaction.options.getUser("user")
-            const buffer = await drawTriedStar(pickLine(domain))
+            const text = interaction.options.getString("text")
+            const buffer = await drawTriedStar(text ? text : pickLine(domain))
             const result = await interaction.reply({
                 content: user ? `${user}` : undefined,
                 files: [new AttachmentBuilder(buffer)]
@@ -100,7 +101,7 @@ commands.set("help", {
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
-    new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")),
+    new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")).addStringOption(input => input.setName("text").setDescription("The text to display.")),
     new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
     new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
 ]

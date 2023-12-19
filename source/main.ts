@@ -126,7 +126,7 @@ const contextCommands = [
 ]
 
 const debugCommands = [
-    new SlashCommandBuilder().setName("reset"),
+    new SlashCommandBuilder().setName("reset").setDescription("Reset command registry."),
 ]
 
 async function registerCommands() {
@@ -189,7 +189,7 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     let points = []
 
     for (let i = 0; i < 5; i += 1) {
-        const outer = Math.min(Math.random(), 0.25)*originalOuter
+        const outer = originalOuter
         let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
         if (inner > originalInner) {
             inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)

@@ -85,6 +85,25 @@ commands.set("award", {
     }
 })
 
+commands.set("reset", {
+    async execute(interaction: CommandInteraction) {
+        if (interaction.isChatInputCommand()) {
+
+            const rest = new REST().setToken(token)
+
+            try {
+                await rest.put(Routes.applicationCommands(clientId), { body: [] })
+            } catch(error) {
+                console.error(error)
+            }
+        
+            interaction.reply({
+                content: "It is done.",
+            })
+        }
+    }
+})
+
 commands.set("refresh", {
     async execute(interaction: CommandInteraction) {
         reloadStarLines()
@@ -106,17 +125,28 @@ const contextCommands = [
     new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
 ]
 
+const debugCommands = [
+    new SlashCommandBuilder().setName("reset"),
+]
+
 async function registerCommands() {
     const rest = new REST().setToken(token)
 
     try {
         let jsonCommands = []
+        let debugJsonCommands = []
         for (const command of contextCommands) {
             jsonCommands.push(command.toJSON())
         }
 
+        for (const command of debugCommands) {
+            debugJsonCommands.push(command.toJSON())
+        }
+
         const data2: any = await rest.put(Routes.applicationCommands(clientId), { body: jsonCommands })
-        console.log(`loaded ${data2}`)
+        const data3: any = await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: debugJsonCommands })
+        console.log(`loaded ${data2} ${data3}`)
+
     } catch(error) {
         console.error(error)
     }

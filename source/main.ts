@@ -152,6 +152,47 @@ async function registerCommands() {
     }
 }
 
+function formatLineOld(ctx: CanvasText, w: number, text: string): string {
+    let lines = []
+    let offset = 0
+
+    const words = text.split(" ")
+    for (let i = 1; i < words.length; i += 1) {
+        const segment = words.slice(offset, i).join(" ")
+        const msgMetric = ctx.measureText(segment)
+        if (msgMetric.width > w*0.8) {
+            lines.push(words.slice(offset, i - 1).join(" "))
+            offset = i - 1
+        }
+    }
+
+    lines.push(words.slice(offset).join(" "))
+
+    return lines.length == 0 ? text : lines.join("\n")
+}
+
+function formatLineNew(ctx: CanvasText, w: number, text: string): string {
+    let lines = []
+    let offset = 0
+
+    for (let i = 1; i < text.length; i += 1) {
+        const measuredText = ctx.measureText(text.substring(offset, i))
+        if (measuredText.width > w) {
+            for (let j = i - 1; j > offset; j -= 1) {
+                if (text[j] == " ") {
+                    lines.push(text.substring(offset, j))
+                    offset = j + 1
+                    break
+                }
+            }
+        }
+    }
+
+    lines.push(text.substring(offset))
+
+    return lines.join("\n")
+}
+
 async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     const w = 1024
     const h = 1024
@@ -231,22 +272,7 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
 
-        let lines = []
-        let offset = 0
-
-        const words = chosenLine.split(" ")
-        for (let i = 1; i < words.length; i += 1) {
-            const segment = words.slice(offset, i).join(" ")
-            const msgMetric = ctx.measureText(segment)
-            if (msgMetric.width > w*0.8) {
-                lines.push(words.slice(offset, i - 1).join(" "))
-                offset = i - 1
-            }
-        }
-
-        lines.push(words.slice(offset).join(" "))
-
-        const finalLine = lines.length == 0 ? chosenLine : lines.join("\n")
+        const finalLine = formatLineNew(ctx, w, chosenLine)
 
         ctx.fillStyle = "#000000"
         ctx.fillText(finalLine, cx, cy)

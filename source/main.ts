@@ -152,25 +152,6 @@ async function registerCommands() {
     }
 }
 
-function formatLineOld(ctx: CanvasText, w: number, text: string): string {
-    let lines = []
-    let offset = 0
-
-    const words = text.split(" ")
-    for (let i = 1; i < words.length; i += 1) {
-        const segment = words.slice(offset, i).join(" ")
-        const msgMetric = ctx.measureText(segment)
-        if (msgMetric.width > w*0.8) {
-            lines.push(words.slice(offset, i - 1).join(" "))
-            offset = i - 1
-        }
-    }
-
-    lines.push(words.slice(offset).join(" "))
-
-    return lines.length == 0 ? text : lines.join("\n")
-}
-
 function formatLineNew(ctx: CanvasText, w: number, text: string): string {
     let lines = []
     let offset = 0
@@ -213,9 +194,11 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     const radius = w/2
 
     let originalInner = radius*0.4, originalOuter = radius*1.0
-    let sides = 5
     let dx = 0, dy = 1
-    const orbitAmount = (Math.PI*2)/10
+
+    const armBias = [12, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
+    const armCount = armBias[Math.round(Math.random()*(armBias.length - 1))]
+    const orbitAmount = (Math.PI*2)/(armCount*2)
 
     const grd = ctx.createLinearGradient(cx + originalInner/16, (cy - originalInner/8) + radius/8, cx - originalInner/8, cy + originalInner + radius/8)
     grd.addColorStop(0.0, starFillColour)
@@ -229,7 +212,7 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
 
     let points = []
 
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < armCount; i += 1) {
         const outer = originalOuter
         let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
         if (inner > originalInner) {
@@ -303,8 +286,6 @@ client.once(Events.ClientReady, readyClient => {
 })
 
 client.on(Events.InteractionCreate, async interaction => {
-    // console.log(interaction)
-
     if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand() && !interaction.isChatInputCommand()) {
         return
     }

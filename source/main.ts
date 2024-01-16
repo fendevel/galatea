@@ -1,4 +1,4 @@
-import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, ChannelType, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Guild, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, Snowflake, User, UserContextMenuCommandInteraction } from "discord.js"
+import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, ChannelType, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Guild, GuildMember, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, Snowflake, User, UserContextMenuCommandInteraction, VoiceBasedChannel, VoiceChannel } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
 import {Canvas, loadImage, registerFont} from "canvas"
 import * as path from "node:path"
@@ -76,7 +76,14 @@ commands.set("award", {
             
             const user = interaction.options.getUser("user")
             const text = interaction.options.getString("text")
-            const buffer = await drawTriedStar(text ? text : pickLine(domain))
+            const count = interaction.options.getInteger("count")
+
+            if (count > 10000) {
+                interaction.reply("Yeah I'm not drawing that.")
+                return
+            }
+
+            const buffer = await drawTriedStar(text ? text : pickLine(domain), count)
             const result = await interaction.reply({
                 content: user ? `${user}` : undefined,
                 files: [new AttachmentBuilder(buffer)]
@@ -120,9 +127,16 @@ commands.set("help", {
 const contextCommands = [
     new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
     new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
-    new SlashCommandBuilder().setName("award").setDescription("⭐").addUserOption(input => input.setName("user").setDescription("The target user")).addStringOption(input => input.setName("text").setDescription("The text to display.")),
+    new SlashCommandBuilder().setName("award").setDescription("⭐")
+        .addUserOption(input => input.setName("user").setDescription("The target user"))
+        .addStringOption(input => input.setName("text").setDescription("The text to display."))
+        .addIntegerOption(input => input.setName("count").setDescription("The number of 'arms' the star should be drawn with.")),
     new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
     new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
+]
+
+const voiceCommands = [
+    new SlashCommandBuilder().setName("play").setDescription("Play from a source."),
 ]
 
 const debugCommands = [
@@ -135,6 +149,7 @@ async function registerCommands() {
     try {
         let jsonCommands = []
         let debugJsonCommands = []
+        let voiceJsonCommands = []
         for (const command of contextCommands) {
             jsonCommands.push(command.toJSON())
         }
@@ -143,9 +158,17 @@ async function registerCommands() {
             debugJsonCommands.push(command.toJSON())
         }
 
-        const data2: any = await rest.put(Routes.applicationCommands(clientId), { body: jsonCommands })
-        const data3: any = await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: debugJsonCommands })
-        console.log(`loaded ${data2} ${data3}`)
+        for (const command of voiceCommands) {
+            voiceJsonCommands.push(command.toJSON())
+        }
+
+        const data = [
+            await rest.put(Routes.applicationCommands(clientId), { body: jsonCommands }),
+            await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: debugJsonCommands }),
+            await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: voiceJsonCommands }),
+        ]
+
+        console.log(`loaded ${data}`)
 
     } catch(error) {
         console.error(error)
@@ -174,7 +197,7 @@ function formatLineNew(ctx: CanvasText, w: number, text: string): string {
     return lines.join("\n")
 }
 
-async function drawTriedStar(chosenLine: string): Promise<Buffer> {
+async function drawTriedStar(chosenLine: string, count: number | undefined = undefined): Promise<Buffer> {
     const w = 1024
     const h = 1024
 
@@ -196,8 +219,8 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
     let originalInner = radius*0.4, originalOuter = radius*1.0
     let dx = 0, dy = 1
 
-    const armBias = [12, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
-    const armCount = armBias[Math.round(Math.random()*(armBias.length - 1))]
+    const armBias = [100, 12, 9, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
+    const armCount = count != undefined ? count : armBias[Math.round(Math.random()*(armBias.length - 1))]
     const orbitAmount = (Math.PI*2)/(armCount*2)
 
     const grd = ctx.createLinearGradient(cx + originalInner/16, (cy - originalInner/8) + radius/8, cx - originalInner/8, cy + originalInner + radius/8)
@@ -212,31 +235,35 @@ async function drawTriedStar(chosenLine: string): Promise<Buffer> {
 
     let points = []
 
-    for (let i = 0; i < armCount; i += 1) {
-        const outer = originalOuter
-        let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
-        if (inner > originalInner) {
-            inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
+    if (armCount == 0) {
+        ctx.arc(cx, cy, originalOuter, 0, Math.PI*2)
+    } else {
+        for (let i = 0; i < armCount; i += 1) {
+            const outer = originalOuter
+            let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
+            if (inner > originalInner) {
+                inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
+            }
+    
+            const biasOffset = Math.round(Math.random()*100)
+            const selectedTipBias = bias[(biasOffset + i) % bias.length]
+        
+            dx = Math.sin(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
+            dy = Math.cos(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
+    
+            points.push([cx + dx*outer, cy + dy*outer])
+        
+            dx = Math.sin(orbitAmount*(2 + 2*i) + (selectedTipBias*Math.random()*2 - 1)*Math.PI*0.1)
+            dy = Math.cos(orbitAmount*(2 + 2*i) + (selectedTipBias*Math.random()*2 - 1)*Math.PI*0.1)
+        
+            points.push([cx + dx*inner, cy + dy*inner])
         }
-
-        const biasOffset = Math.round(Math.random()*100)
-        const selectedTipBias = bias[(biasOffset + i) % bias.length]
     
-        dx = Math.sin(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
-        dy = Math.cos(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
-
-        points.push([cx + dx*outer, cy + dy*outer])
+        ctx.moveTo(points[points.length - 1][0], points[points.length - 1][1])
     
-        dx = Math.sin(orbitAmount*(2 + 2*i) + (selectedTipBias*Math.random()*2 - 1)*Math.PI*0.1)
-        dy = Math.cos(orbitAmount*(2 + 2*i) + (selectedTipBias*Math.random()*2 - 1)*Math.PI*0.1)
-    
-        points.push([cx + dx*inner, cy + dy*inner])
-    }
-
-    ctx.moveTo(points[points.length - 1][0], points[points.length - 1][1])
-
-    for (const point of points) {
-        ctx.lineTo(point[0], point[1])
+        for (const point of points) {
+            ctx.lineTo(point[0], point[1])
+        }
     }
 
     ctx.closePath()
@@ -276,7 +303,7 @@ function reloadStarLines() {
 
 reloadStarLines()
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds]})
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]})
 
 client.login(token)
 

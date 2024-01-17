@@ -78,7 +78,7 @@ commands.set("award", {
             const text = interaction.options.getString("text")
             const count = interaction.options.getInteger("count")
 
-            if (count > 10000) {
+            if (count > 10000 || count < 0) {
                 interaction.reply("Yeah I'm not drawing that.")
                 return
             }

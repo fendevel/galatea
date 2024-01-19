@@ -78,7 +78,7 @@ commands.set("award", {
             const text = interaction.options.getString("text")
             const count = interaction.options.getInteger("count")
 
-            if (count > 10000 || count < 0) {
+            if (Math.abs(count) > 10000) {
                 interaction.reply("Yeah I'm not drawing that.")
                 return
             }
@@ -229,6 +229,18 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     grd.addColorStop(1.0, starFillColour)
 
     ctx.fillStyle = grd
+
+    if (armCount < 0) {
+        if (chosenLine == "absolutely disgusting") {
+            const image = await loadImage("data/absolutely_disgusting.jpg")
+            ctx.drawImage(image, 0, 0, w, h)
+        } else {
+            ctx.fillRect(0, 0, w, h)
+        }
+
+        ctx.globalCompositeOperation = "destination-out"
+    }
+
     ctx.beginPath()
     
     const bias = [0.1, 0.1, 0.2, 0.5, 1.0, 0.2, 0.3, 0.1, 0.5, 0.2, 0.3, 0.25, 0.1, 0.2, 0.05, 0.0, 0.2, 0.4, 0.1, 0.2, 0.4, 0.1, 0, 0.1, 0.2, 0, 0.1, 0]
@@ -238,7 +250,8 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     if (armCount == 0) {
         ctx.arc(cx, cy, originalOuter, 0, Math.PI*2)
     } else {
-        for (let i = 0; i < armCount; i += 1) {
+        const count = Math.abs(armCount)
+        for (let i = 0; i < count; i += 1) {
             const outer = originalOuter
             let inner = Math.max((Math.random()*1.5)*originalInner, radius*0.01)
             if (inner > originalInner) {
@@ -273,11 +286,15 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
         const image = await loadImage("data/absolutely_disgusting.jpg")
         ctx.drawImage(image, 0, 0, w, h)
         ctx.restore()
+
         const scale = 3
         ctx.drawImage(image, 129, 365, 208, 32, cx - (208/2)*scale, cy, 208*scale, 32*scale)
         ctx.drawImage(image, 350, 365, 203, 32, cx - (203/2)*scale, cy + 32*scale, 203*scale, 32*scale)
     } else {
         ctx.fill()
+
+        ctx.globalCompositeOperation = "source-over"
+
         ctx.font = '100px "Comic Sans MS"'
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"

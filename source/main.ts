@@ -78,17 +78,18 @@ commands.set("award", {
             const user = interaction.options.getUser("user")
             const text = interaction.options.getString("text")
             const count = interaction.options.getInteger("count")
+            const size = interaction.options.getInteger("size")
 
-            if (count > 10000) {
+            if (count > 10000 || (size != undefined && size < 1)) {
                 interaction.reply("Yeah I'm not drawing that.")
                 return
             }
 
             let buffer: Buffer = undefined
             if (text && text == "banana") {
-                buffer = await drawBanana(count)
+                buffer = await drawBanana(count, size != undefined ? size : 1024)
             } else {
-                buffer = await drawTriedStar(text ? text : pickLine(domain), count)
+                buffer = await drawTriedStar(text ? text : pickLine(domain), count, size != undefined ? size : 1024)
             }
 
             const result = await interaction.reply({
@@ -137,7 +138,8 @@ const contextCommands = [
     new SlashCommandBuilder().setName("award").setDescription("⭐")
         .addUserOption(input => input.setName("user").setDescription("The target user"))
         .addStringOption(input => input.setName("text").setDescription("The text to display."))
-        .addIntegerOption(input => input.setName("count").setDescription("The number of 'arms' the star should be drawn with.")),
+        .addIntegerOption(input => input.setName("count").setDescription("The number of 'arms' the star should be drawn with."))
+        .addIntegerOption(input => input.setName("size").setDescription("The width and height of the image (default is 1024).")),
     new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
     new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
 ]
@@ -204,9 +206,9 @@ function formatLineNew(ctx: CanvasText, w: number, text: string): string {
     return lines.join("\n")
 }
 
-async function drawTriedStar(chosenLine: string, count: number | undefined = undefined): Promise<Buffer> {
-    const w = 1024
-    const h = 1024
+async function drawTriedStar(chosenLine: string, count: number | undefined = undefined, canvasSize = 1024): Promise<Buffer> {
+    const w = canvasSize
+    const h = canvasSize
 
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
@@ -320,13 +322,12 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     return canvas.toBuffer("image/png")
 }
 
-async function drawBanana(count: number | undefined = undefined): Promise<Buffer> {
-    const w = 1024
-    const h = 1024
+async function drawBanana(count: number | undefined = undefined, canvasSize = 1024): Promise<Buffer> {
+    const w = canvasSize
+    const h = canvasSize
 
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
-    // const image = await loadImage("./data/venus vector.svg")
 
     const image_size = 1080
 

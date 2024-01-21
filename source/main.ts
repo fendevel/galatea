@@ -86,7 +86,7 @@ commands.set("award", {
             }
 
             let buffer: Buffer = undefined
-            if (text && text == "banana") {
+            if (text != undefined && (["banana", "venus"].indexOf(text.toLowerCase()) != -1)) {
                 buffer = await drawBanana(count, size != undefined ? size : 1024)
             } else {
                 buffer = await drawTriedStar(text ? text : pickLine(domain), count, size != undefined ? size : 1024)
@@ -184,15 +184,28 @@ async function registerCommands() {
     }
 }
 
-function formatLineNew(ctx: CanvasText, w: number, text: string): string {
+function testText(ctx: CanvasText, size: number, text: string): number {
+    const line = text.replaceAll("\n", " ")
+
+    const measuredText = ctx.measureText(line)
+    const height = measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent
+    const dim = Math.sqrt(measuredText.width*height)
+
+    return size/dim
+}
+
+function formatLineNew(ctx: CanvasText, w: number, text: string) {
     let lines = []
     let offset = 0
+
+    let height = 0
 
     for (let i = 1; i < text.length; i += 1) {
         const measuredText = ctx.measureText(text.substring(offset, i))
         if (measuredText.width > w) {
             for (let j = i - 1; j > offset; j -= 1) {
                 if (text[j] == " ") {
+                    height += measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent
                     lines.push(text.substring(offset, j))
                     offset = j + 1
                     break
@@ -202,8 +215,10 @@ function formatLineNew(ctx: CanvasText, w: number, text: string): string {
     }
 
     lines.push(text.substring(offset))
+    const measuredText = ctx.measureText(text.substring(offset))
+    height += measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent
 
-    return lines.join("\n")
+    return [lines.join("\n"), height]
 }
 
 async function drawTriedStar(chosenLine: string, count: number | undefined = undefined, canvasSize = 1024): Promise<Buffer> {
@@ -243,7 +258,7 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     ctx.fillStyle = grd
 
     if (armCount < 0) {
-        if (chosenLine == "absolutely disgusting") {
+        if (chosenLine.toLowerCase() == "absolutely disgusting") {
             const image = await loadImage("data/absolutely_disgusting.jpg")
             ctx.drawImage(image, 0, 0, w, h)
         } else {
@@ -308,16 +323,21 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
         ctx.globalCompositeOperation = "source-over"
 
         ctx.font = `${100*sizeRation}px "Comic Sans MS"`
+        const multiplier = testText(ctx, 1024, chosenLine)
+        if (multiplier < 0.9) {
+            ctx.font = `${100*sizeRation*multiplier}px "Comic Sans MS"`
+        }
+
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
 
-        const finalLine = formatLineNew(ctx, w, chosenLine)
+        const [finalLine, height] = formatLineNew(ctx, w, chosenLine)
 
         ctx.fillStyle = "#000000"
-        ctx.fillText(finalLine, cx, cy)
+        ctx.fillText(finalLine as string, cx, cy - (height as number)/2)
         ctx.strokeStyle = starFillColour
         ctx.lineWidth = 3*sizeRation
-        ctx.strokeText(finalLine, cx, cy)
+        ctx.strokeText(finalLine as string, cx, cy - (height as number)/2)
     }
 
 

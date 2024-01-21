@@ -80,7 +80,7 @@ commands.set("award", {
             const count = interaction.options.getInteger("count")
             const size = interaction.options.getInteger("size")
 
-            if (count > 10000 || (size != undefined && size < 1)) {
+            if (count > 10000 || (size != undefined && (size < 1 || size > 4096))) {
                 interaction.reply("Yeah I'm not drawing that.")
                 return
             }
@@ -210,6 +210,8 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     const w = canvasSize
     const h = canvasSize
 
+    const sizeRation = canvasSize/1024
+
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
 
@@ -305,7 +307,7 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
 
         ctx.globalCompositeOperation = "source-over"
 
-        ctx.font = '100px "Comic Sans MS"'
+        ctx.font = `${100*sizeRation}px "Comic Sans MS"`
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
 
@@ -314,7 +316,7 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
         ctx.fillStyle = "#000000"
         ctx.fillText(finalLine, cx, cy)
         ctx.strokeStyle = starFillColour
-        ctx.lineWidth = 3
+        ctx.lineWidth = 3*sizeRation
         ctx.strokeText(finalLine, cx, cy)
     }
 

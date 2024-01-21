@@ -257,7 +257,7 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
 
     ctx.fillStyle = grd
 
-    if (armCount < 0) {
+    if (armCount < 0 || Object.is(armCount, -0)) {
         if (chosenLine.toLowerCase() == "absolutely disgusting") {
             const image = await loadImage("data/absolutely_disgusting.jpg")
             ctx.drawImage(image, 0, 0, w, h)
@@ -376,7 +376,7 @@ async function drawBanana(count: number | undefined = undefined, canvasSize = 10
 
     ctx.fillStyle = "#fd0"
 
-    if (armCount < 0) {
+    if (armCount < 0 || Object.is(armCount, -0)) {
         ctx.fillRect(0, 0, w, h)
         ctx.globalCompositeOperation = "destination-out"
     }

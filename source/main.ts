@@ -107,6 +107,10 @@ commands.set("award", {
                 return
             }
 
+            const initial = await interaction.reply({
+                content: "Drawing...",
+            })
+
             const armCount = count != undefined ? count : pickCount()
 
             let buffer: Buffer = undefined
@@ -116,8 +120,8 @@ commands.set("award", {
                 buffer = await drawTriedStar(text ? text : pickLine(domain), armCount, size != undefined ? size : 1024)
             }
 
-            const result = await interaction.reply({
-                content: user ? `${user}` : undefined,
+            initial.edit({
+                content: user ? `${user}` : "",
                 files: [new AttachmentBuilder(buffer)]
             })
         }

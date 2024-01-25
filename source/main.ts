@@ -1,7 +1,8 @@
 import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, ChannelType, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Guild, GuildMember, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, Snowflake, User, UserContextMenuCommandInteraction, VoiceBasedChannel, VoiceChannel } from "discord.js"
 const { token, clientId, testGuildId } = require("../config.json")
 // import {Canvas, loadImage, FontLibrary, DOMMatrix, Path2D} from "skia-canvas"
-import {Canvas, loadImage, registerFont, DOMMatrix} from "canvas"
+// import {Canvas, loadImage, registerFont, DOMMatrix} from "canvas"
+import {Canvas, loadImage, GlobalFonts, DOMMatrix} from "@napi-rs/canvas"
 import * as path from "node:path"
 import * as fs from "node:fs"
 
@@ -43,11 +44,17 @@ function pickLine(domain: Guild|User): string {
     return remainingLines[index]
 }
 
+function pickCount(): number {
+    const armBias = [100, 12, 9, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
+    return armBias[Math.round(Math.random()*(armBias.length - 1))]
+}
+
 commands.set("Award author", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isMessageContextMenuCommand()) {
             const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
-            const buffer = await drawTriedStar(pickLine(domain))
+            const armCount = pickCount()
+            const buffer = await drawTriedStar(pickLine(domain), armCount)
             const result = await interaction.reply({
                 content: interaction.targetMessage.author.id == client.user.id ? undefined : `${interaction.targetMessage.author}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -60,8 +67,8 @@ commands.set("Award user", {
     async execute(interaction: CommandInteraction) {
         if (interaction.isUserContextMenuCommand()) {
             const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
-
-            const buffer = await drawTriedStar("phil_what.png")
+            const armCount = pickCount()
+            const buffer = await drawTriedStar(pickLine(domain), armCount)
             const result = await interaction.reply({
                 content: interaction.targetUser.id == client.user.id ? undefined : `${interaction.targetUser}`,
                 files: [new AttachmentBuilder(buffer)]
@@ -80,16 +87,33 @@ commands.set("award", {
             const count = interaction.options.getInteger("count")
             const size = interaction.options.getInteger("size")
 
-            if (count > 10000 || (size != undefined && (size < 1 || size > 4096))) {
-                interaction.reply("Yeah I'm not drawing that.")
+            const pointLimit = 10000
+            const sizeLimitLower = 1
+            const sizeLimitUpper = 4096
+
+            if ((count != undefined && count > pointLimit) || (size != undefined && (size < sizeLimitLower || size > sizeLimitUpper))) {
+                let reasons: string[] = []
+                if (count != undefined && count > pointLimit) {
+                    reasons.push(`My point limit is ${pointLimit} but you asked for ${count}.`)
+                }
+
+                if (size != undefined) {
+                    if (size < sizeLimitLower || size > sizeLimitUpper) {
+                        reasons.push(`You asked for an image size of ${size}x${size} but my range is [${sizeLimitLower}, ${sizeLimitUpper}].`)
+                    }
+                }
+
+                interaction.reply(`Yeah I'm not drawing that. ${reasons.join(" ")}`)
                 return
             }
 
+            const armCount = count != undefined ? count : pickCount()
+
             let buffer: Buffer = undefined
             if (text != undefined && (["banana", "venus"].indexOf(text.toLowerCase()) != -1)) {
-                buffer = await drawBanana(count, size != undefined ? size : 1024)
+                buffer = await drawBanana(armCount, size != undefined ? size : 1024)
             } else {
-                buffer = await drawTriedStar(text ? text : pickLine(domain), count, size != undefined ? size : 1024)
+                buffer = await drawTriedStar(text ? text : pickLine(domain), armCount, size != undefined ? size : 1024)
             }
 
             const result = await interaction.reply({
@@ -194,18 +218,28 @@ function testText(ctx: CanvasText, size: number, text: string): number {
     return size/dim
 }
 
+function fitText(ctx: CanvasText & CanvasTextDrawingStyles, canvasSize: number, text: string) {
+    const sizeRation = canvasSize/1024
+    let fontSize = 100*sizeRation
+
+    while (true) {
+        ctx.font = `${fontSize}px "Comic Sans MS"`
+
+    }
+}
+
 function formatLineNew(ctx: CanvasText, w: number, text: string) {
     let lines = []
     let offset = 0
 
-    let height = 0
+    let heights = []
 
     for (let i = 1; i < text.length; i += 1) {
         const measuredText = ctx.measureText(text.substring(offset, i))
         if (measuredText.width > w) {
             for (let j = i - 1; j > offset; j -= 1) {
-                if (text[j] == " ") {
-                    height += measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent
+                if ([" ", ","].includes(text[j])) {
+                    heights.push(measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent)
                     lines.push(text.substring(offset, j))
                     offset = j + 1
                     break
@@ -216,12 +250,12 @@ function formatLineNew(ctx: CanvasText, w: number, text: string) {
 
     lines.push(text.substring(offset))
     const measuredText = ctx.measureText(text.substring(offset))
-    height += measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent
+    heights.push(measuredText.actualBoundingBoxAscent + measuredText.actualBoundingBoxDescent)
 
-    return [lines.join("\n"), height]
+    return [lines, heights]
 }
 
-async function drawTriedStar(chosenLine: string, count: number | undefined = undefined, canvasSize = 1024): Promise<Buffer> {
+async function drawTriedStar(chosenLine: string, count: number, canvasSize = 1024): Promise<Buffer> {
     const w = canvasSize
     const h = canvasSize
 
@@ -230,12 +264,11 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
 
-    registerFont("data/COMIC.TTF", {
-        family: "Comic Sans",
-    })
+    GlobalFonts.registerFromPath("data/COMIC.TTF", "Comic Sans")
 
-    ctx.quality = "best"
-    ctx.patternQuality = "best"
+    ctx.imageSmoothingQuality = "high"
+    // ctx.quality = "best"
+    // ctx.patternQuality = "best"
 
     const starFillColour = "#D7B144"
     const starFillColourBright = "#F4D679"
@@ -246,8 +279,7 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
     let originalInner = radius*0.4, originalOuter = radius*1.0
     let dx = 0, dy = 1
 
-    const armBias = [100, 12, 9, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
-    const armCount = count != undefined ? count : armBias[Math.round(Math.random()*(armBias.length - 1))]
+    const armCount = count
     const orbitAmount = (Math.PI*2)/(armCount*2)
 
     const grd = ctx.createLinearGradient(cx + originalInner/16, (cy - originalInner/8) + radius/8, cx - originalInner/8, cy + originalInner + radius/8)
@@ -325,26 +357,34 @@ async function drawTriedStar(chosenLine: string, count: number | undefined = und
         ctx.font = `${100*sizeRation}px "Comic Sans MS"`
         const multiplier = testText(ctx, 1024, chosenLine)
         if (multiplier < 0.9) {
-            ctx.font = `${100*sizeRation*multiplier}px "Comic Sans MS"`
+            ctx.font = `${Math.round(100*sizeRation*multiplier)}px "Comic Sans MS"`
         }
 
         ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
+        ctx.textBaseline = "hanging"
 
-        const [finalLine, height] = formatLineNew(ctx, w, chosenLine)
+        const [finalLines, heights] = formatLineNew(ctx, w, chosenLine)
 
         ctx.fillStyle = "#000000"
-        ctx.fillText(finalLine as string, cx, cy - (height as number)/2)
         ctx.strokeStyle = starFillColour
         ctx.lineWidth = 3*sizeRation
-        ctx.strokeText(finalLine as string, cx, cy - (height as number)/2)
+        
+        let yOffset = -(heights as number[]).reduce((a, b) => a+b)/2
+        for (let i = 0; i < finalLines.length; i += 1) {
+            const lineHeight: number = heights[i]
+            const line = finalLines[i] as string
+
+            ctx.fillText(line, cx, cy + yOffset)
+            ctx.strokeText(line, cx, cy + yOffset)
+            yOffset += lineHeight
+        }
     }
 
 
     return canvas.toBuffer("image/png")
 }
 
-async function drawBanana(count: number | undefined = undefined, canvasSize = 1024): Promise<Buffer> {
+async function drawBanana(count: number, canvasSize = 1024): Promise<Buffer> {
     const w = canvasSize
     const h = canvasSize
 
@@ -353,16 +393,16 @@ async function drawBanana(count: number | undefined = undefined, canvasSize = 10
 
     const image_size = 1080
 
-    ctx.quality = "best"
-    ctx.patternQuality = "best"
+    ctx.imageSmoothingQuality = "high"
+    // ctx.quality = "best"
+    // ctx.patternQuality = "best"
 
     const cx = w/2
     const cy = h/2
     const radius = w/2
     const bananaRadius = w/4
 
-    const armBias = [100, 12, 9, 8, 8, 8, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 3, 3, 2, 2]
-    const armCount = count != undefined ? count : armBias[Math.round(Math.random()*(armBias.length - 1))]
+    const armCount = count
     const orbitAmount = (Math.PI*2)/(armCount*2)
 
     let originalInner = bananaRadius, originalOuter = radius*1.0

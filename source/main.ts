@@ -1,24 +1,28 @@
-import { APIPingInteraction, Application, ApplicationCommandOptionType, ApplicationCommandType, AttachmentBuilder, ChannelType, Client, Collection, CommandInteraction, ContextMenuCommandBuilder, Events, GatewayIntentBits, Guild, GuildMember, Interaction, InteractionResponse, MessageContextMenuCommandInteraction, MessagePayload, REST, Routes, SlashCommandBuilder, SlashCommandMentionableOption, SlashCommandUserOption, Snowflake, User, UserContextMenuCommandInteraction, VoiceBasedChannel, VoiceChannel } from "discord.js"
-const { token, clientId, testGuildId } = require("../config.json")
-// import {Canvas, loadImage, FontLibrary, DOMMatrix, Path2D} from "skia-canvas"
-// import {Canvas, loadImage, registerFont, DOMMatrix} from "canvas"
+/*
+
+    Authored by Jack P. Fenech
+    Github: https://github.com/fendevel
+    Twitter: https://twitter.com/fendev
+
+    Galatea is my personal novelty Discord bot. Her source was made public upon request. 
+    Her sole function is to randomly generate crude star shapes with messages like "you tried" and "there was an attempt".
+*/
+
+import * as discord from "discord.js"
+const { token, clientId, testGuildId } = require("../sensitive_config.json")
 import {Canvas, loadImage, GlobalFonts, DOMMatrix} from "@napi-rs/canvas"
-import * as path from "node:path"
 import * as fs from "node:fs"
 
+const defaultStarSize = 1024
+const starPointLimit = 10000
+const starSizeLimitLower = 1
+const starSizeLimitUpper = 4096
+
 let starLines = []
-let linesDoneGlobal = new Map<Guild|User, Array<number>>()
+let linesDoneGlobal = new Map<discord.Guild|discord.User, Array<number>>()
 
-console.log("hello world!!!")
-
-type Command = {
-    // data: any
-    execute: (interaction: CommandInteraction) => void
-}
-
-let commands = new Collection<string, Command>()
-
-function pickLine(domain: Guild|User): string {
+// the idea is to randomly pick a line but not repeat it until all other options have been exhausted
+function pickLine(domain: discord.Guild|discord.User): string {
     if (!linesDoneGlobal.has(domain)) {
         linesDoneGlobal.set(domain, new Array<number>())
         console.log(`added domain ${domain}`)
@@ -49,57 +53,49 @@ function pickCount(): number {
     return armBias[Math.round(Math.random()*(armBias.length - 1))]
 }
 
-commands.set("Award author", {
-    async execute(interaction: CommandInteraction) {
+type CommandFunc = (interaction: discord.CommandInteraction) => void
+
+const commands = new discord.Collection<string, CommandFunc>([
+    ["Award author", async (interaction: discord.CommandInteraction) => {
         if (interaction.isMessageContextMenuCommand()) {
-            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+            const domain: discord.Guild|discord.User = interaction.channel ? interaction.guild : interaction.user
             const armCount = pickCount()
-            const buffer = await drawTriedStar(pickLine(domain), armCount)
+            const buffer = await drawStar(pickLine(domain), armCount, defaultStarSize)
             const result = await interaction.reply({
-                content: interaction.targetMessage.author.id == client.user.id ? undefined : `${interaction.targetMessage.author}`,
-                files: [new AttachmentBuilder(buffer)]
+                content: interaction.targetMessage.author.id == interaction.client.user.id ? undefined : `${interaction.targetMessage.author}`,
+                files: [new discord.AttachmentBuilder(buffer)]
             })
         }
-    }
-})
-
-commands.set("Award user", {
-    async execute(interaction: CommandInteraction) {
+    }],
+    ["Award user", async (interaction: discord.CommandInteraction) => {
         if (interaction.isUserContextMenuCommand()) {
-            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+            const domain:  discord.Guild|discord.User = interaction.channel ? interaction.guild : interaction.user
             const armCount = pickCount()
-            const buffer = await drawTriedStar(pickLine(domain), armCount)
+            const buffer = await drawStar(pickLine(domain), armCount, defaultStarSize)
             const result = await interaction.reply({
-                content: interaction.targetUser.id == client.user.id ? undefined : `${interaction.targetUser}`,
-                files: [new AttachmentBuilder(buffer)]
+                content: interaction.targetUser.id == interaction.client.user.id ? undefined : `${interaction.targetUser}`,
+                files: [new  discord.AttachmentBuilder(buffer)]
             })
         }
-    }
-})
-
-commands.set("award", {
-    async execute(interaction: CommandInteraction) {
+    }],
+    ["award", async (interaction: discord.CommandInteraction) => {
         if (interaction.isChatInputCommand()) {
-            const domain: Guild|User = interaction.channel ? interaction.guild : interaction.user
+            const domain:  discord.Guild|discord.User = interaction.channel ? interaction.guild : interaction.user
             
             const user = interaction.options.getUser("user")
             const text = interaction.options.getString("text")
             const count = interaction.options.getInteger("count")
             const size = interaction.options.getInteger("size")
 
-            const pointLimit = 10000
-            const sizeLimitLower = 1
-            const sizeLimitUpper = 4096
-
-            if ((count != undefined && count > pointLimit) || (size != undefined && (size < sizeLimitLower || size > sizeLimitUpper))) {
+            if ((count != undefined && count > starPointLimit) || (size != undefined && (size < starSizeLimitLower || size > starSizeLimitUpper))) {
                 let reasons: string[] = []
-                if (count != undefined && count > pointLimit) {
-                    reasons.push(`My point limit is ${pointLimit} but you asked for ${count}.`)
+                if (count != undefined && count > starPointLimit) {
+                    reasons.push(`My point limit is ${starPointLimit} but you asked for ${count}.`)
                 }
 
                 if (size != undefined) {
-                    if (size < sizeLimitLower || size > sizeLimitUpper) {
-                        reasons.push(`You asked for an image size of ${size}x${size} but my range is [${sizeLimitLower}, ${sizeLimitUpper}].`)
+                    if (size < starSizeLimitLower || size > starSizeLimitUpper) {
+                        reasons.push(`You asked for an image size of ${size}x${size} but my range is [${starSizeLimitLower}, ${starSizeLimitUpper}].`)
                     }
                 }
 
@@ -115,78 +111,49 @@ commands.set("award", {
 
             let buffer: Buffer = undefined
             if (text != undefined && (["banana", "venus"].indexOf(text.toLowerCase()) != -1)) {
-                buffer = await drawBanana(armCount, size != undefined ? size : 1024)
+                buffer = await drawVenus(armCount, size != undefined ? size : defaultStarSize)
             } else {
-                buffer = await drawTriedStar(text ? text : pickLine(domain), armCount, size != undefined ? size : 1024)
+                buffer = await drawStar(text ? text : pickLine(domain), armCount, size != undefined ? size : defaultStarSize)
             }
 
             initial.edit({
                 content: user ? `${user}` : "",
-                files: [new AttachmentBuilder(buffer)]
+                files: [new  discord.AttachmentBuilder(buffer)]
             })
         }
-    }
-})
-
-commands.set("reset", {
-    async execute(interaction: CommandInteraction) {
-        if (interaction.isChatInputCommand()) {
-
-            const rest = new REST().setToken(token)
-
-            try {
-                await rest.put(Routes.applicationCommands(clientId), { body: [] })
-            } catch(error) {
-                console.error(error)
-            }
-        
-            interaction.reply({
-                content: "It is done.",
-            })
-        }
-    }
-})
-
-commands.set("refresh", {
-    async execute(interaction: CommandInteraction) {
+    }],
+    ["refresh", async (interaction: discord.CommandInteraction) => {
         reloadStarLines()
         interaction.reply("Refreshed my cache -- but I didn't do it for you or anything.")
-    }
-})
-
-commands.set("help", {
-    async execute(interaction: CommandInteraction) {
-        interaction.reply("You can either use the slash command \`/award [user @]\`, or right-click to open the context menu and navigate to Apps -> Award user/author.")
-    }
-})
-
-const contextCommands = [
-    new ContextMenuCommandBuilder().setName("Award author").setType(ApplicationCommandType.Message),
-    new ContextMenuCommandBuilder().setName("Award user").setType(ApplicationCommandType.User),
-    new SlashCommandBuilder().setName("award").setDescription("⭐")
-        .addUserOption(input => input.setName("user").setDescription("The target user"))
-        .addStringOption(input => input.setName("text").setDescription("The text to display."))
-        .addIntegerOption(input => input.setName("count").setDescription("The number of 'arms' the star should be drawn with."))
-        .addIntegerOption(input => input.setName("size").setDescription("The width and height of the image (default is 1024).")),
-    new SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
-    new SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
-]
-
-const voiceCommands = [
-    new SlashCommandBuilder().setName("play").setDescription("Play from a source."),
-]
-
-const debugCommands = [
-    new SlashCommandBuilder().setName("reset").setDescription("Reset command registry."),
-]
+    }],
+    ["help", async (interaction: discord.CommandInteraction) => {
+        interaction.reply("You can either use the slash command \`/award [text: value] [count: star points] [size: value] [user: @]\`, or right-click to open the context menu and navigate to Apps -> Award user/author.")
+    }],
+])
 
 async function registerCommands() {
-    const rest = new REST().setToken(token)
+    const contextCommands = [
+        new discord.ContextMenuCommandBuilder().setName("Award author").setType( discord.ApplicationCommandType.Message),
+        new discord.ContextMenuCommandBuilder().setName("Award user").setType( discord.ApplicationCommandType.User),
+        new discord.SlashCommandBuilder().setName("award").setDescription("⭐")
+            .addUserOption(input => input.setName("user").setDescription("The target user"))
+            .addStringOption(input => input.setName("text").setDescription("The text to display."))
+            .addIntegerOption(input => input.setName("count").setDescription("The number of 'arms' the star should be drawn with."))
+            .addIntegerOption(input => input.setName("size").setDescription(`The width and height of the image (default is ${defaultStarSize}).`)),
+        new discord.SlashCommandBuilder().setName("refresh").setDescription("Refresh lines cache."),
+        new discord.SlashCommandBuilder().setName("help").setDescription("Get a refresher on how to use me."),
+    ]
+    
+    const debugCommands = [
+        new discord.SlashCommandBuilder().setName("reset").setDescription("Reset command registry."),
+    ]
+
+    const rest = new discord.REST().setToken(token)
 
     try {
         let jsonCommands = []
         let debugJsonCommands = []
-        let voiceJsonCommands = []
+        
         for (const command of contextCommands) {
             jsonCommands.push(command.toJSON())
         }
@@ -195,14 +162,9 @@ async function registerCommands() {
             debugJsonCommands.push(command.toJSON())
         }
 
-        for (const command of voiceCommands) {
-            voiceJsonCommands.push(command.toJSON())
-        }
-
         const data = [
-            await rest.put(Routes.applicationCommands(clientId), { body: jsonCommands }),
-            await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: debugJsonCommands }),
-            await rest.put(Routes.applicationGuildCommands(clientId, testGuildId), { body: voiceJsonCommands }),
+            await rest.put(discord.Routes.applicationCommands(clientId), { body: jsonCommands }),
+            await rest.put(discord.Routes.applicationGuildCommands(clientId, testGuildId), { body: debugJsonCommands }),
         ]
 
         console.log(`loaded ${data}`)
@@ -259,7 +221,7 @@ function formatLineNew(ctx: CanvasText, w: number, text: string) {
     return [lines, heights]
 }
 
-async function drawTriedStar(chosenLine: string, count: number, canvasSize = 1024): Promise<Buffer> {
+async function drawStar(chosenLine: string, count: number, canvasSize: number): Promise<Buffer> {
     const w = canvasSize
     const h = canvasSize
 
@@ -268,11 +230,7 @@ async function drawTriedStar(chosenLine: string, count: number, canvasSize = 102
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
 
-    GlobalFonts.registerFromPath("data/COMIC.TTF", "Comic Sans")
-
     ctx.imageSmoothingQuality = "high"
-    // ctx.quality = "best"
-    // ctx.patternQuality = "best"
 
     const starFillColour = "#D7B144"
     const starFillColourBright = "#F4D679"
@@ -293,8 +251,10 @@ async function drawTriedStar(chosenLine: string, count: number, canvasSize = 102
 
     ctx.fillStyle = grd
 
+    const absolutelyDisgusting = "absolutely disgusting"
+
     if (armCount < 0 || Object.is(armCount, -0)) {
-        if (chosenLine.toLowerCase() == "absolutely disgusting") {
+        if (chosenLine.toLowerCase() == absolutelyDisgusting) {
             const image = await loadImage("data/absolutely_disgusting.jpg")
             ctx.drawImage(image, 0, 0, w, h)
         } else {
@@ -343,7 +303,7 @@ async function drawTriedStar(chosenLine: string, count: number, canvasSize = 102
     }
 
     ctx.closePath()
-    if (chosenLine == "absolutely disgusting") {
+    if (chosenLine == absolutelyDisgusting) {
         ctx.save()
         ctx.clip()
         const image = await loadImage("data/absolutely_disgusting.jpg")
@@ -388,95 +348,89 @@ async function drawTriedStar(chosenLine: string, count: number, canvasSize = 102
     return canvas.toBuffer("image/png")
 }
 
-async function drawBanana(count: number, canvasSize = 1024): Promise<Buffer> {
+// in-joke alternative drawing routine that displays a star in the likeness of my friend's (https://twitter.com/Venny2003) character
+async function drawVenus(count: number, canvasSize): Promise<Buffer> {
+    const venusYellow = "#fd0"
+    const venusBlue = "#4da6ff"
+
     const w = canvasSize
     const h = canvasSize
 
     const canvas = new Canvas(w, h)
     const ctx = canvas.getContext("2d")
 
-    const image_size = 1080
+    // my original reference vector graphic had a WxH of 1080 but we need it to scale with arbitrary canvas sizes
+    const refScale = 1080
 
     ctx.imageSmoothingQuality = "high"
-    // ctx.quality = "best"
-    // ctx.patternQuality = "best"
 
     const cx = w/2
     const cy = h/2
     const radius = w/2
-    const bananaRadius = w/4
+    const venusRadius = w/4
 
     const armCount = count
     const orbitAmount = (Math.PI*2)/(armCount*2)
 
-    let originalInner = bananaRadius, originalOuter = radius*1.0
+    let originalInner = venusRadius, originalOuter = radius*1.0
     let dx = 0, dy = 1
 
-    // ctx.fill("evenodd")
-    // ctx.clip("evenodd")
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     ctx.miterLimit = 1.5
 
-    ctx.fillStyle = "#fd0"
+    ctx.fillStyle = venusYellow
 
     if (armCount < 0 || Object.is(armCount, -0)) {
         ctx.fillRect(0, 0, w, h)
         ctx.globalCompositeOperation = "destination-out"
     }
 
-    if (true) {
-        if (armCount == 0) {
-            ctx.arc(cx, cy, originalOuter, 0, Math.PI*2)
-        } else {
-            let points = []
-    
-            const bias = [0.1, 0.1, 0.2, 0.5, 1.0, 0.2, 0.3, 0.1, 0.5, 0.2, 0.3, 0.25, 0.1, 0.2, 0.05, 0.0, 0.2, 0.4, 0.1, 0.2, 0.4, 0.1, 0, 0.1, 0.2, 0, 0.1, 0]
-            const count = Math.abs(armCount)
+    if (armCount == 0) {
+        ctx.arc(cx, cy, originalOuter, 0, Math.PI*2)
+    } else {
+        let points = []
 
-            for (let i = 0; i < count; i += 1) {
-                const outer = originalOuter
-                let inner = Math.max((Math.random()*1.5)*originalInner, bananaRadius*0.9)
-                if (inner > originalInner) {
-                    inner = Math.max((Math.random()*1.5)*originalInner, bananaRadius*0.9)
-                }
-        
-                const biasOffset = Math.round(Math.random()*100)
-                const selectedTipBias = bias[(biasOffset + i) % bias.length]
-                
-                dx = Math.sin(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
-                dy = Math.cos(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
-        
-                points.push([cx + dx*outer, cy + dy*outer])
+        const bias = [0.1, 0.1, 0.2, 0.5, 1.0, 0.2, 0.3, 0.1, 0.5, 0.2, 0.3, 0.25, 0.1, 0.2, 0.05, 0.0, 0.2, 0.4, 0.1, 0.2, 0.4, 0.1, 0, 0.1, 0.2, 0, 0.1, 0]
+        const count = Math.abs(armCount)
+
+        for (let i = 0; i < count; i += 1) {
+            const outer = originalOuter
+            let inner = Math.max((Math.random()*1.5)*originalInner, venusRadius*0.9)
+            if (inner > originalInner) {
+                inner = Math.max((Math.random()*1.5)*originalInner, venusRadius*0.9)
+            }
+    
+            const biasOffset = Math.round(Math.random()*100)
+            const selectedTipBias = bias[(biasOffset + i) % bias.length]
             
-                dx = Math.sin(orbitAmount*(2 + 2*i))
-                dy = Math.cos(orbitAmount*(2 + 2*i))
+            dx = Math.sin(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
+            dy = Math.cos(orbitAmount*(1 + 2*i) + selectedTipBias*Math.random()*Math.PI)
+    
+            points.push([cx + dx*outer, cy + dy*outer])
         
-                points.push([cx + dx*inner, cy + dy*inner])
-            }
-        
-            ctx.moveTo(points[points.length - 1][0], points[points.length - 1][1])
-        
-            for (const point of points) {
-                ctx.lineTo(point[0], point[1])
-            }
-        
-            ctx.closePath()
+            dx = Math.sin(orbitAmount*(2 + 2*i))
+            dy = Math.cos(orbitAmount*(2 + 2*i))
+    
+            points.push([cx + dx*inner, cy + dy*inner])
         }
-        ctx.fill()
+    
+        ctx.moveTo(points[points.length - 1][0], points[points.length - 1][1])
+    
+        for (const point of points) {
+            ctx.lineTo(point[0], point[1])
+        }
+    
+        ctx.closePath()
     }
+    ctx.fill()
 
     ctx.globalCompositeOperation = "source-over"
 
-    const adjustTransform = new DOMMatrix([((bananaRadius*2)/image_size), 0, 0, ((bananaRadius*2)/image_size), radius/2, radius/2])
+    const adjustTransform = new DOMMatrix([((venusRadius*2)/refScale), 0, 0, ((venusRadius*2)/refScale), radius/2, radius/2])
 
-    // ctx.setTransform(adjustTransform)
-    // ctx.transform(5.48632,0,0,5.13498,-495.997,-472.601)
-    // ctx.ellipse(188.833, 197.197, 98.427, 105.161, 0, 0, Math.PI*2)
-    // ctx.fill()
-
-    ctx.fillStyle = "#4da6ff"
-    ctx.strokeStyle="#4da6ff"
+    ctx.fillStyle = venusBlue
+    ctx.strokeStyle = venusBlue
     ctx.lineWidth = 10
 
     const eyePosRandom = Math.random()
@@ -531,7 +485,6 @@ async function drawBanana(count: number, canvasSize = 1024): Promise<Buffer> {
     const len = Math.sqrt(midX*midX + midY*midY)
     const dirX = midX / len
     const dirY = midY / len
-    console.log(dirX, dirY)
 
     const lashControlX0 = 420.919 + dirY*eyePosOffset/2
     const lashControlY0 = 442.809 - dirX*eyePosOffset/2
@@ -611,8 +564,6 @@ async function drawBanana(count: number, canvasSize = 1024): Promise<Buffer> {
     ctx.lineTo(571.6,626.086)
     ctx.fill()
 
-    // ctx.drawImage(image, radius/2, radius/2, bananaRadius*2, bananaRadius*2)
-
     return canvas.toBuffer("image/png")
 }
 
@@ -622,32 +573,43 @@ function reloadStarLines() {
     console.log("Lines cache refreshed")
 }
 
-reloadStarLines()
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]})
-
-client.login(token)
-
-client.once(Events.ClientReady, readyClient => {
-    console.log(`logged in as ${readyClient.user.tag}!`)
-    registerCommands()
-})
-
-client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand() && !interaction.isChatInputCommand()) {
+function entry() {
+    if (GlobalFonts.registerFromPath("data/COMIC.TTF", "Comic Sans")) {
+        console.log("successfully registered font")
+    } else {
+        console.error("failed to register font!")
         return
     }
 
-    const command = commands.get(interaction.commandName)
+    reloadStarLines()
 
-    if (!command) {
-        console.error(`failed to find command ${interaction.commandName}`)
-        return
-    }
+    const client = new discord.Client({ intents: [discord.GatewayIntentBits.Guilds, discord.GatewayIntentBits.GuildVoiceStates]})
 
-    try {
-        await command.execute(interaction)
-    } catch(error) {
-        console.error(error)
-    }
-})
+    client.login(token)
+
+    client.once(discord.Events.ClientReady, readyClient => {
+        console.log(`logged in as ${readyClient.user.tag}!`)
+        registerCommands()
+    })
+
+    client.on(discord.Events.InteractionCreate, async interaction => {
+        if (!interaction.isMessageContextMenuCommand() && !interaction.isUserContextMenuCommand() && !interaction.isChatInputCommand()) {
+            return
+        }
+
+        const command = commands.get(interaction.commandName)
+
+        if (!command) {
+            console.error(`failed to find command ${interaction.commandName}`)
+            return
+        }
+
+        try {
+            await command(interaction)
+        } catch(error) {
+            console.error(error)
+        }
+    })
+}
+
+entry()

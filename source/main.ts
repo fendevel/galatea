@@ -349,7 +349,7 @@ async function drawStar(chosenLine: string, count: number, canvasSize: number): 
 }
 
 // in-joke alternative drawing routine that displays a star in the likeness of my friend's (https://twitter.com/Venny2003) character
-async function drawVenus(count: number, canvasSize): Promise<Buffer> {
+async function drawVenus(count: number, canvasSize: number): Promise<Buffer> {
     const venusYellow = "#fd0"
     const venusBlue = "#4da6ff"
 
